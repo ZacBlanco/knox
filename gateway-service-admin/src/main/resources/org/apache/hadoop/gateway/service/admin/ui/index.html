@@ -17,10 +17,110 @@
 <!--*/-->
 <html>
 <head>
-    <title>Knox Admin</title>
+    <title>Knox Dashboard</title>
+	<style>
+		html, body, p, div, span, h1, h2, h3, h4, h5 {
+			margin: 0px;
+			padding: 0px;
+		}
+		header {
+			background-color:limegreen;
+			height: 45px;
+			color:white;
+			text-align: center;
+			box-shadow: 0px 5px 20px black;
+		}
+		header > h1 {
+			max-height: inherit;
+		}
+		#content {
+			margin: 30px auto;
+			border-radius: 10px;
+			max-width: 80%;
+			min-width: 80%;
+			min-height: 100%;
+		}
+		#content > h1, h2, h3, h4, h5, h6 {
+			text-align: center;
+		}
+		body {
+			background-color: rgb(50, 50, 50);
+			color:white;
+			font-family: sans-serif;
+		}
+		#topology-container {
+			padding: 20px 20px;
+			margin: 20px auto;
+			background-color:rgb(75,75,75);
+			min-width: 20px;
+			min-height: 20px;
+			border-radius: 10px;
+			box-shadow: 5px 5px 20px rgb(20, 20, 20);
+		}
+		
+	</style>
 </head>
 
+	<header>
+		<h1>Apache Knox</h1>
+	</header>
     <body>
-        Hello World!
+		<div id="content">
+			<h2>Dashboard</h2>
+			<div id="topology-container">
+				<h3>Topologies</h3>
+				<ul id="topologies-list">
+					<div><li></li>
+				<li></li>
+				<li></li>
+				<li></li>
+				<li></li></div>
+				</ul>
+			</div>
+			
+		</div>
     </body>
+	<script>
+		var topList = document.getElementById("topologies-list");
+		var ulItem = document.createElement("li");
+		makeGetRequest("https://localhost:8443/gateway/admin/api/v1/topologies", makeUL);
+		makeGetRequest("http://127.0.0.1:51850/index.html", makeUL);
+		
+		function makeGetRequest(url, callback) {
+			var request = new XMLHttpRequest();
+			request.onreadystatechange = function(){callback(request);};
+			request.open("GET", url);
+			request.setRequestHeader("content-type", "application/json");
+			request.send();
+		}
+		
+		function makeUL(request) {
+			console.log("makeUL called " + request.readyState + " ayy");
+			while(topList.firstChild) {
+				topList.removeChild(topList.firstChild);
+			}
+			if(request.readyState = XMLHttpRequest.DONE) {
+				var e = document.createElement("li")
+				e.innerHTML = request.responseText;
+				topList.appendChild(e);
+			} else {
+				var elem = document.createElement("ul");
+				elem.innerHTML = "Loading Topologies...";
+				topList.appendChild(elem);
+			}
+		}
+				
+		function getBaseURI(){
+			var uri = "";
+			uri += location.protocol + "//";
+			uri += location.hostname + ":";
+			uri += location.port;
+			
+			var paths = location.pathname.split("/");
+			
+			for(var i = 0; i < paths.length && i < 2; i++)
+				
+			return uri;
+		}
+	</script>
 </html>
