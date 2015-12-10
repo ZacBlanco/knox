@@ -25,12 +25,14 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 
 import static javax.ws.rs.core.MediaType.TEXT_HTML;
+import static javax.ws.rs.core.Response.ok;
 
 @Path("/ui")
 public class UIResource {
@@ -40,9 +42,10 @@ public class UIResource {
   @GET
   @Produces({TEXT_HTML})
   @Path("home")
-  public InputStream getHome() throws FileNotFoundException{
+  public Response getHome() throws FileNotFoundException{
     InputStream i = this.getClass().getResourceAsStream("index.html");
-    return i;
+
+    return ok().entity(i).header("Access-Control-Allow-Origin", "*").allow("OPTIONS").build();
   }
 
 
