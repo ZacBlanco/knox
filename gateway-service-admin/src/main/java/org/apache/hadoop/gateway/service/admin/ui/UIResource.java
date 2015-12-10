@@ -48,6 +48,15 @@ public class UIResource {
     return ok().entity(i).header("Access-Control-Allow-Origin", "*").allow("OPTIONS").build();
   }
 
+  @GET
+  @Produces({TEXT_HTML})
+  @Path("knox.js")
+  public Response getJavascript() throws FileNotFoundException{
+    InputStream i = this.getClass().getResourceAsStream("knox.js");
+
+    return ok().entity(i).header("Access-Control-Allow-Origin", "*").allow("OPTIONS").build();
+  }
+
 
 
 
