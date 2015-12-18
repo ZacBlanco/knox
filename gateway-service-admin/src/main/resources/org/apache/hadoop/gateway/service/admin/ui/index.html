@@ -16,136 +16,142 @@
 <!--* limitations under the License.-->
 <!--*/-->
 <html>
-<head>
+  <head>
     <title>Knox Dashboard</title>
-	<style>
-		html, body, p, div, span, h1, h2, h3, h4, h5 {
-			margin: 0px;
-			padding: 0px;
-		}
-		a{
-			text-decoration: none;
-			color:inherit;
-		}
-		a:hover {
-			
-		}
-		header {
-			background-color:limegreen;
-			height: 45px;
-			color:white;
-			box-shadow: 0px 5px 20px black;
-		}
-		header > h1 {
-			max-height: inherit;
-			padding:10px;
-			margin:10px;
-		}
-		#content {
-			margin: 30px auto;
-			border-radius: 10px;
-			max-width: 80%;
-			min-width: 80%;
-			min-height: 100%;
-		}
-		#content > h1, h2, h3, h4, h5, h6 {
-			text-align: center;
-		}
-		body {
-			background-color: rgb(50, 50, 50);
-			color:white;
-			font-family: sans-serif;
-		}
-		.topology-container {
-			padding: 20px 20px;
-			margin: 20px auto;
-			background-color:rgb(75,75,75);
-			min-width: 20px;
-			min-height: 20px;
-			border-radius: 10px;
-			box-shadow: 5px 5px 20px rgb(20, 20, 20);
-		}
-		.topology-container > p {
-			margin: 10px;
-			padding: 10px;
-			text-align: center;
-		}
-	</style>
-</head>
-
-	<header>
-		<a href="index.html"><h1>Apache Knox</h1></a>
-	</header>
-    <body>
-		<div id="content">
-			<h2>Dashboard</h2>
-			<div class="topology-container">
-				<h3>Topologies</h3>
-				<ul id="topologies-list">
-					<li></li>
-				</ul>
-			</div>
-			<div class="topology-container">
-				<h3>Topology Info</h3>
-				</br>
-				<p>Topology information will appear here.</p>
-				<ul id="topologies-list">
-				</ul>
-			</div>
-			
-		</div>
-    </body>
-	<script>
-		var topList = document.getElementById("topologies-list");
-		var ulItem = document.createElement("li");
-		makeGetRequest("https://localhost:8443/gateway/admin/api/v1/topologies", makeUL);
-		//makeGetRequest("http://127.0.0.1:51850/index.html", makeUL);
-		
-		function makeGetRequest(url, callback) {
-			var request = new XMLHttpRequest();
-			request.withCredentials = true;
-			request.onreadystatechange = function(){callback(request);};
-			request.open("GET", url, true);
-			console.log(btoa("admin:admin-password"));
-			request.setRequestHeader("Authorization", "Basic " + btoa("admin:admin-password"));
-			request.setRequestHeader("Accept", "application/json");
-			request.send();
-		}
-		
-		function makeUL(request) {
-			console.log("makeUL called " + request.readyState + " ayy");
-			while(topList.firstChild) {
-				topList.removeChild(topList.firstChild);
-			}
-			if(request.readyState == 4) {
-				var js = request.response.topologies;
-				console.log(request.response);
-				console.log(JSON.parse(request.response));
-				var js2 = JSON.parse(request.response);
-				js2 = js2.topologies.topology;
-				for(j = 0; j < js2.length; j++) {
-					var e = document.createElement("li")
-					var link = document.createElement("a");
-					link.setAttribute("href", js2[j].href)
-					link.innerHTML = js2[j].name;
-					e.appendChild(link);
-					topList.appendChild(e);
-				}
-			} else {
-				var elem = document.createElement("ul");
-				elem.innerHTML = "Loading Topologies...";
-				topList.appendChild(elem);
-			}
-		}
-				
-		function getBaseURI(){
-			var uri = "";
-			uri += location.protocol + "//";
-			uri += location.hostname + ":";
-			uri += location.port;
-			
-			var paths = location.pathname.split("/");				
-			return uri;
-		}
-	</script>
+    <style>
+      html, body, p, div, span, h1, h2, h3, h4, h5, ul {
+        margin: 0px;
+        padding: 0px;
+      }
+      a{
+        text-decoration: none;
+        color:inherit;
+      }
+      h1 {
+        font-size: 42px;
+        margin: auto 20px;
+      }
+      h2 {
+        font-size: 36px;
+      }
+      h3 {
+        font-size: 28px;
+      }
+      header {
+        background-color:limegreen;
+        height: 60px;
+        color:white;
+        box-shadow: 0px 5px 20px black;
+      }
+      header > h1 {
+        max-height: inherit;
+        padding:10px;
+        margin:10px;
+      }
+      #content {
+        margin: 30px auto;
+        border-radius: 10px;
+        max-width: 650px;
+        width: 90%;
+        min-height: 100%;
+      }
+      #content > h1, h2, h3, h4, h5, h6 {
+        text-align: center;
+      }
+      body {
+        background-color: rgb(50, 50, 50);
+        color:white;
+        font-family: sans-serif;
+      }
+      .topology-container {
+        padding: 20px 20px;
+        margin: 20px auto;
+        background-color:rgb(75,75,75);
+        min-width: 20px;
+        min-height: 20px;
+        border-radius: 10px;
+        box-shadow: 5px 5px 20px rgb(20, 20, 20);
+      }
+      
+      .topology-container > p {
+        margin: 10px;
+        padding: 10px;
+        text-align: center;
+      }
+      #topologies-list > li {
+        align-content: center;
+        text-align: center;
+        min-height: 50px;
+        text-decoration: bold;
+        font-weight: 900;
+        margin:auto;
+        width: 50%;
+        font-size: 2em;
+        background-color:deepskyblue;
+      }
+      #topologies-list { 
+        display: block;
+        list-style-type: none;
+        width: 100%;
+        padding-top: 20;
+      }
+      ul#topology-list { 
+        padding: 0px;
+        list-style-type: none;
+        margin: 0px auto;
+      }
+      .property {
+        min-height: 40px;
+        background-color: rgb(150, 150, 150);
+      }
+      .prop-name {
+        margin: auto 50;
+        background-color:forestgreen;
+        float:left;
+      }
+      .prop-value {
+        margin: auto;
+        background-color:forestgreen;
+        float:right;
+      }
+      #topology-info {
+        display:block;
+        margin: auto;
+        max-height: 500px;
+        max-width: 800px;
+        width: 100%;
+        height:100%;
+      }
+      #topology-info-container {
+        min-width: 100%;
+        height: 200px;
+        margin:auto;
+      }
+    </style>
+  </head>
+  <header>
+    <a href="index.html">
+      <h1>Apache Knox</h1>
+    </a>
+  </header>
+  <body>
+    <div id="content">
+      <h2>Dashboard</h2>
+      <div class="topology-container">
+        <h3>Topologies</h3>
+        <div id="topology-list-container">
+          <ul id="topologies-list">
+            <li></li>
+          </ul>
+        </div>
+      </div>
+      <div class="topology-container">
+        <h3>Topology Info</h3>
+        </br>
+          <p>Topology information will appear here.</p>
+          <div id="topology-info-container"><textarea id="topology-info"></textarea></div>
+      </div>
+    </div>
+  </body>
+  <script src="knox.js"></script>
 </html>

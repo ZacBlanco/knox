@@ -41,7 +41,7 @@ function populateTopologies(request) {
 
         var e = document.createElement("li");
         var link = document.createElement("a");
-        link.setAttribute("href", js2[j].href);
+        link.setAttribute("onclick", "getTopologyInfo(\"" + js2[j].href + "\")");
         link.innerHTML = js2[j].name;
         e.appendChild(link);
         topList.appendChild(e);
@@ -55,13 +55,28 @@ function populateTopologies(request) {
   }
 }
 
+function getTopologyInfo(url){
+  makeGetRequest(url, populateTopologyInfo);
+}
+
+function populateTopologyInfo(request) {
+  var textArea = document.getElementById("topology-info")
+  if (request.readyState == 4) {
+    if (request.response != ""){
+      var js2 = JSON.parse(request.response);
+      textArea.innerHTML = JSON.stringify(js2);
+    }
+  } else {
+    textArea.innerHTML = "Loading...";
+  }
+}
+
 function getBaseURI() {
   var uri = "";
   uri += location.protocol + "//";
-  uri += location.hostname + ":";
-  uri += location.port;
-
-  var paths = location.pathname.split("/");
+  uri += location.host + "/";
+  var path = location.pathname.substring(1, location.pathname.indexOf("/ui/home"))
+  uri += path;
   return uri;
 }
 
