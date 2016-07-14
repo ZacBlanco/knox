@@ -30,6 +30,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URL;
 import java.util.Enumeration;
@@ -46,6 +47,7 @@ import org.apache.hadoop.gateway.services.GatewayServices;
 import org.apache.hadoop.gateway.services.ServiceLifecycleException;
 import org.apache.hadoop.gateway.services.security.AliasService;
 import org.apache.hadoop.gateway.util.KnoxCLI;
+import org.apache.hadoop.test.TestUtils;
 import org.apache.http.HttpStatus;
 import org.apache.log4j.Appender;
 import org.hamcrest.MatcherAssert;
@@ -67,9 +69,6 @@ import com.mycila.xmltool.XMLTag;
  */
 public class GatewayLdapDynamicGroupFuncTest {
 
-  private static final long SHORT_TIMEOUT = 2000L;
-  private static final long MEDIUM_TIMEOUT = 5 * SHORT_TIMEOUT;
-
   private static Class RESOURCE_BASE_CLASS = GatewayLdapDynamicGroupFuncTest.class;
   private static Logger LOG = LoggerFactory.getLogger( GatewayLdapDynamicGroupFuncTest.class );
 
@@ -78,6 +77,7 @@ public class GatewayLdapDynamicGroupFuncTest {
   public static GatewayServer gateway;
   public static String gatewayUrl;
   public static String clusterUrl;
+  public static String serviceUrl;
   public static SimpleLdapDirectoryServer ldap;
   public static TcpTransport ldapTransport;
 
@@ -87,6 +87,8 @@ public class GatewayLdapDynamicGroupFuncTest {
     //appenders = NoOpAppender.setUp();
     int port = setupLdap();
     setupGateway(port);
+    TestUtils.awaitPortOpen( new InetSocketAddress( "localhost", port ), 10000, 100 );
+    TestUtils.awaitNon404HttpStatus( new URL( serviceUrl ), 10000, 100 );
     LOG_EXIT();
   }
 
@@ -102,12 +104,11 @@ public class GatewayLdapDynamicGroupFuncTest {
 
   public static int setupLdap() throws Exception {
     URL usersUrl = getResourceUrl( "users.ldif" );
-    int port = findFreePort();
-    ldapTransport = new TcpTransport( port );
+    ldapTransport = new TcpTransport( 0 );
     ldap = new SimpleLdapDirectoryServer( "dc=hadoop,dc=apache,dc=org", new File( usersUrl.toURI() ), ldapTransport );
     ldap.start();
-    LOG.info( "LDAP port = " + ldapTransport.getPort() );
-    return port;
+    LOG.info( "LDAP port = " + ldapTransport.getAcceptor().getLocalAddress().getPort() );
+    return ldapTransport.getAcceptor().getLocalAddress().getPort();
   }
 
   public static void setupGateway(int ldapPort) throws IOException, Exception {
@@ -125,11 +126,6 @@ public class GatewayLdapDynamicGroupFuncTest {
 
     File deployDir = new File( testConfig.getGatewayDeploymentDir() );
     deployDir.mkdirs();
-
-    File descriptor = new File( topoDir, "testdg-cluster.xml" );
-    FileOutputStream stream = new FileOutputStream( descriptor );
-    createTopology(ldapPort).toStream( stream );
-    stream.close();
 
     DefaultGatewayServices srvcs = new DefaultGatewayServices();
     Map<String,String> options = new HashMap<String,String>();
@@ -169,6 +165,7 @@ public class GatewayLdapDynamicGroupFuncTest {
 
     gatewayUrl = "http://localhost:" + gateway.getAddresses()[0].getPort() + "/" + config.getGatewayPath();
     clusterUrl = gatewayUrl + "/testdg-cluster";
+    serviceUrl =  clusterUrl + "/test-service-path/test-service-resource";
 
     ///*
     GatewayServices services = GatewayServer.getGatewayServices();
@@ -178,17 +175,11 @@ public class GatewayLdapDynamicGroupFuncTest {
     char[] password1 = aliasService.getPasswordFromAliasForCluster( "testdg-cluster", "ldcSystemPassword");
     //System.err.println("SETUP password 10: " + ((password1 == null) ? "NULL" : new String(password1)));
 
-    descriptor = new File( topoDir, "testdg-cluster.xml" );
-    stream = new FileOutputStream( descriptor );
+    File descriptor = new File( topoDir, "testdg-cluster.xml" );
+    FileOutputStream stream = new FileOutputStream( descriptor );
     createTopology(ldapPort).toStream( stream );
     stream.close();
 
-    try {
-      Thread.sleep(5000);
-    } catch (Exception e) {
-
-    }
-    //*/
   }
 
   private static XMLTag createTopology(int ldapPort) {
@@ -271,13 +262,6 @@ public class GatewayLdapDynamicGroupFuncTest {
     return xml;
   }
 
-  private static int findFreePort() throws IOException {
-    ServerSocket socket = new ServerSocket(0);
-    int port = socket.getLocalPort();
-    socket.close();
-    return port;
-  }
-
   public static InputStream getResourceStream( String resource ) throws IOException {
     return getResourceUrl( resource ).openStream();
   }
@@ -301,7 +285,7 @@ public class GatewayLdapDynamicGroupFuncTest {
     System.in.read();
   }
 
-  @Test( timeout = MEDIUM_TIMEOUT )
+  @Test( timeout = TestUtils.MEDIUM_TIMEOUT )
   public void testGroupMember() throws ClassNotFoundException, Exception {
     LOG_ENTER();
     String username = "bob";
@@ -319,7 +303,7 @@ public class GatewayLdapDynamicGroupFuncTest {
     LOG_EXIT();
   }
 
-  @Test( timeout = MEDIUM_TIMEOUT )
+  @Test( timeout = TestUtils.MEDIUM_TIMEOUT )
   public void testNonGroupMember() throws ClassNotFoundException {
     LOG_ENTER();
     String username = "guest";

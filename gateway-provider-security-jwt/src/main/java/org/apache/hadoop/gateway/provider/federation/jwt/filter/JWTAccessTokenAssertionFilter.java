@@ -124,7 +124,7 @@ public class JWTAccessTokenAssertionFilter extends AbstractIdentityAssertionFilt
       jsonResponse = JsonUtils.renderAsJsonString(map);
       
       response.getWriter().write(jsonResponse);
-      response.getWriter().flush();
+      //KNOX-685: response.getWriter().flush();
       return; // break filter chain
     }
     else {
@@ -150,11 +150,14 @@ public class JWTAccessTokenAssertionFilter extends AbstractIdentityAssertionFilt
     JWTToken token = null;
     try {
       token = authority.issueToken(p, serviceName, "RS256", expires);
+      // Coverity CID 1327961
+      if( token != null ) {
+        accessToken = token.toString();
+      }
     } catch (TokenServiceException e) {
       log.unableToIssueToken(e);
     }
-    accessToken = token.toString();
-    
+
     return accessToken;
   }
 

@@ -17,7 +17,6 @@
  */
 package org.apache.hadoop.gateway;
 
-import com.jayway.restassured.RestAssured;
 import com.mycila.xmltool.XMLDoc;
 import com.mycila.xmltool.XMLTag;
 import org.apache.directory.server.protocol.shared.transport.TcpTransport;
@@ -25,6 +24,7 @@ import org.apache.hadoop.gateway.config.GatewayConfig;
 import org.apache.hadoop.gateway.security.ldap.SimpleLdapDirectoryServer;
 import org.apache.hadoop.gateway.services.DefaultGatewayServices;
 import org.apache.hadoop.gateway.services.ServiceLifecycleException;
+import org.apache.hadoop.test.TestUtils;
 import org.apache.http.HttpStatus;
 import org.apache.log4j.Appender;
 import org.hamcrest.MatcherAssert;
@@ -40,7 +40,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.ServerSocket;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -48,8 +47,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.config.ConnectionConfig.connectionConfig;
-import static com.jayway.restassured.config.RestAssuredConfig.newConfig;
 import static org.apache.hadoop.test.TestUtils.LOG_ENTER;
 import static org.apache.hadoop.test.TestUtils.LOG_EXIT;
 import static org.hamcrest.CoreMatchers.is;
@@ -57,10 +54,6 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assert.assertThat;
 
 public class GatewaySampleFuncTest {
-
-  private static final long SHORT_TIMEOUT = 1000L;
-  private static final long MEDIUM_TIMEOUT = 20 * 1000L;
-  private static final long LONG_TIMEOUT = 60 * 1000L;
 
   private static Class RESOURCE_BASE_CLASS = GatewaySampleFuncTest.class;
   private static Logger LOG = LoggerFactory.getLogger( GatewaySampleFuncTest.class );
@@ -76,7 +69,6 @@ public class GatewaySampleFuncTest {
   @BeforeClass
   public static void setupSuite() throws Exception {
     LOG_ENTER();
-    RestAssured.config = newConfig().connectionConfig(connectionConfig().closeIdleConnectionsAfterEachResponse());
     //appenders = NoOpAppender.setUp();
     setupLdap();
     setupGateway();
@@ -95,11 +87,10 @@ public class GatewaySampleFuncTest {
 
   public static void setupLdap() throws Exception {
     URL usersUrl = getResourceUrl( "users.ldif" );
-    int port = findFreePort();
-    ldapTransport = new TcpTransport( port );
+    ldapTransport = new TcpTransport( 0 );
     ldap = new SimpleLdapDirectoryServer( "dc=hadoop,dc=apache,dc=org", new File( usersUrl.toURI() ), ldapTransport );
     ldap.start();
-    LOG.info( "LDAP port = " + ldapTransport.getPort() );
+    LOG.info( "LDAP port = " + ldapTransport.getAcceptor().getLocalAddress().getPort() );
   }
 
   public static void setupGateway() throws Exception {
@@ -158,7 +149,7 @@ public class GatewaySampleFuncTest {
         .addTag( "value" ).addText( "uid={0},ou=people,dc=hadoop,dc=apache,dc=org" ).gotoParent()
         .addTag( "param" )
         .addTag( "name" ).addText( "main.ldapRealm.contextFactory.url" )
-        .addTag( "value" ).addText( "ldap://localhost:" + ldapTransport.getPort() ).gotoParent()
+        .addTag( "value" ).addText( "ldap://localhost:" + ldapTransport.getAcceptor().getLocalAddress().getPort() ).gotoParent()
         .addTag( "param" )
         .addTag( "name" ).addText( "main.ldapRealm.contextFactory.authenticationMechanism" )
         .addTag( "value" ).addText( "simple" ).gotoParent()
@@ -176,13 +167,6 @@ public class GatewaySampleFuncTest {
         .gotoRoot();
     // System.out.println( "GATEWAY=" + xml.toString() );
     return xml;
-  }
-
-  private static int findFreePort() throws IOException {
-    ServerSocket socket = new ServerSocket(0);
-    int port = socket.getLocalPort();
-    socket.close();
-    return port;
   }
 
   public static InputStream getResourceStream( String resource ) throws IOException {
@@ -208,7 +192,7 @@ public class GatewaySampleFuncTest {
     System.in.read();
   }
 
-  @Test( timeout = MEDIUM_TIMEOUT )
+  @Test( timeout = TestUtils.MEDIUM_TIMEOUT )
   public void testTestService() throws ClassNotFoundException {
     LOG_ENTER();
     String username = "guest";

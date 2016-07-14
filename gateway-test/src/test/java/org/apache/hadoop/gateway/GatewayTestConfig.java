@@ -38,9 +38,21 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
   private String kerberosLoginConfig = "/etc/knox/conf/krb5JAASLogin.conf";
   private String frontendUrl = null;
   private boolean xForwardedEnabled = true;
+  private String gatewayApplicationsDir = null;
+  private String gatewayServicesDir;
+  private String defaultTopologyName = "default";
+  private List<String> includedSSLCiphers = null;
+  private List<String> excludedSSLCiphers = null;
+  private boolean sslEnabled = false;
+  private String truststoreType = "jks";
+  private String keystoreType = "jks";
 
   public void setGatewayHomeDir( String gatewayHomeDir ) {
     this.gatewayHomeDir = gatewayHomeDir;
+  }
+
+  public String getGatewayHomeDir() {
+    return this.gatewayHomeDir;
   }
 
   @Override
@@ -115,8 +127,11 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
 
   @Override
   public boolean isSSLEnabled() {
-    // TODO Auto-generated method stub
-    return false;
+    return sslEnabled;
+  }
+
+  public void setSSLEnabled( boolean sslEnabled ) {
+    this.sslEnabled = sslEnabled;
   }
 
   @Override
@@ -151,12 +166,13 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
     return kerberosLoginConfig;
   }
 
-  /* (non-Javadoc)
-   * @see org.apache.hadoop.gateway.config.GatewayConfig#getDefaultTopologyName()
-   */
   @Override
   public String getDefaultTopologyName() {
-    return "default";
+    return defaultTopologyName;
+  }
+
+  public void setDefaultTopologyName( String defaultTopologyName ) {
+    this.defaultTopologyName = defaultTopologyName;
   }
 
   /* (non-Javadoc)
@@ -174,6 +190,10 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
   @Override
   public String getFrontendUrl() { return frontendUrl; }
 
+  public void setFrontendUrl( String frontendUrl ) {
+    this.frontendUrl = frontendUrl;
+  }
+
   /* (non-Javadoc)
    * @see org.apache.hadoop.gateway.config.GatewayConfig#getExcludedSSLProtocols()
    */
@@ -184,8 +204,22 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
     return protocols;
   }
 
-  public void setFrontendUrl( String frontendUrl ) {
-    this.frontendUrl = frontendUrl;
+  @Override
+  public List getIncludedSSLCiphers() {
+    return includedSSLCiphers;
+  }
+
+  public void setIncludedSSLCiphers( List<String> list ) {
+    includedSSLCiphers = list;
+  }
+
+  @Override
+  public List getExcludedSSLCiphers() {
+    return excludedSSLCiphers;
+  }
+
+  public void setExcludedSSLCiphers( List<String> list ) {
+    excludedSSLCiphers = list;
   }
 
   /* (non-Javadoc)
@@ -220,17 +254,23 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
    */
   @Override
   public String getTruststoreType() {
-    // TODO Auto-generated method stub
-    return null;
+    return truststoreType;
   }
-  
+
+  public void setTruststoreType( String truststoreType ) {
+    this.truststoreType = truststoreType;
+  }
+
   /* (non-Javadoc)
    * @see org.apache.hadoop.gateway.config.GatewayConfig#getKeystoreType()
    */
   @Override
   public String getKeystoreType() {
-    // TODO Auto-generated method stub
-    return null;
+    return keystoreType;
+  }
+
+  public void setKeystoreType( String keystoreType ) {
+    this.keystoreType = keystoreType;
   }
 
 //  public void setKerberosLoginConfig(String kerberosLoginConfig) {
@@ -239,7 +279,28 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
 
    @Override
    public String getGatewayServicesDir() {
-      return gatewayHomeDir + "/data/services";
+    if( gatewayServicesDir != null ) {
+      return gatewayServicesDir;
+    } else {
+      return getGatewayDataDir() + "/services";
+    }
+  }
+
+  public void setGatewayServicesDir( String gatewayServicesDir ) {
+    this.gatewayServicesDir = gatewayServicesDir;
+  }
+
+  @Override
+  public String getGatewayApplicationsDir() {
+    if( gatewayApplicationsDir != null ) {
+      return gatewayApplicationsDir;
+    } else {
+      return getGatewayConfDir() + "/applications";
+    }
+  }
+
+  public void setGatewayApplicationsDir( String gatewayApplicationsDir ) {
+    this.gatewayApplicationsDir = gatewayApplicationsDir;
    }
 
   @Override
@@ -262,6 +323,16 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
   @Override
   public int getHttpClientMaxConnections() {
     return 16;
+  }
+
+  @Override
+  public int getHttpClientConnectionTimeout() {
+    return -1;
+  }
+
+  @Override
+  public int getHttpClientSocketTimeout() {
+    return -1;
   }
 
   @Override
@@ -289,4 +360,52 @@ public class GatewayTestConfig extends Configuration implements GatewayConfig {
     return 8*1024;
   }
 
+  private int backupVersionLimit = -1;
+
+  public void setGatewayDeploymentsBackupVersionLimit( int newBackupVersionLimit ) {
+    backupVersionLimit = newBackupVersionLimit;
+  }
+
+  public int getGatewayDeploymentsBackupVersionLimit() {
+    return backupVersionLimit;
+  }
+
+  private long backupAgeLimit = -1;
+
+  @Override
+  public long getGatewayDeploymentsBackupAgeLimit() {
+    return backupAgeLimit;
+  }
+
+  public void setGatewayDeploymentsBackupAgeLimit( long newBackupAgeLimit ) {
+    backupAgeLimit = newBackupAgeLimit;
+  }
+
+  /* (non-Javadoc)
+   * @see org.apache.hadoop.gateway.config.GatewayConfig#getSigningKeystoreName()
+   */
+  @Override
+  public String getSigningKeystoreName() {
+    return null;
+  }
+
+  /* (non-Javadoc)
+   * @see org.apache.hadoop.gateway.config.GatewayConfig#getSigningKeyAlias()
+   */
+  @Override
+  public String getSigningKeyAlias() {
+    return null;
+  }
+
+  @Override
+  public List<String> getGlobalRulesServices() {
+    ArrayList<String> services = new ArrayList<>();
+    services.add("WEBHDFS");
+    services.add("HBASE");
+    services.add("HIVE");
+    services.add("OOZIE");
+    services.add("RESOURCEMANAGER");
+    services.add("STORM");
+    return services;
+  }
 }

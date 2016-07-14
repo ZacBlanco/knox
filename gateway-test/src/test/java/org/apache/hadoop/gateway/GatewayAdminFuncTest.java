@@ -52,10 +52,6 @@ import static org.junit.Assert.assertThat;
 
 public class GatewayAdminFuncTest {
 
-  private static final long SHORT_TIMEOUT = 1000L;
-  private static final long MEDIUM_TIMEOUT = 5 * SHORT_TIMEOUT;
-  private static final long LONG_TIMEOUT = 5 * MEDIUM_TIMEOUT;
-
   private static Class RESOURCE_BASE_CLASS = GatewayAdminFuncTest.class;
   private static Logger LOG = LoggerFactory.getLogger( GatewayAdminFuncTest.class );
 
@@ -88,8 +84,7 @@ public class GatewayAdminFuncTest {
 
   public static void setupLdap() throws Exception {
     URL usersUrl = getResourceUrl( "users.ldif" );
-    int port = findFreePort();
-    ldapTransport = new TcpTransport( port );
+    ldapTransport = new TcpTransport( 0 );
     ldap = new SimpleLdapDirectoryServer( "dc=hadoop,dc=apache,dc=org", new File( usersUrl.toURI() ), ldapTransport );
     ldap.start();
     LOG.info( "LDAP port = " + ldapTransport.getPort() );
@@ -150,7 +145,7 @@ public class GatewayAdminFuncTest {
         .addTag( "value" ).addText( "uid={0},ou=people,dc=hadoop,dc=apache,dc=org" ).gotoParent()
         .addTag( "param" )
         .addTag( "name" ).addText( "main.ldapRealm.contextFactory.url" )
-        .addTag( "value" ).addText( "ldap://localhost:" + ldapTransport.getPort() ).gotoParent()
+        .addTag( "value" ).addText( "ldap://localhost:" + ldapTransport.getAcceptor().getLocalAddress().getPort() ).gotoParent()
         .addTag( "param" )
         .addTag( "name" ).addText( "main.ldapRealm.contextFactory.authenticationMechanism" )
         .addTag( "value" ).addText( "simple" ).gotoParent()
@@ -168,13 +163,6 @@ public class GatewayAdminFuncTest {
         .gotoRoot();
     // System.out.println( "GATEWAY=" + xml.toString() );
     return xml;
-  }
-
-  private static int findFreePort() throws IOException {
-    ServerSocket socket = new ServerSocket(0);
-    int port = socket.getLocalPort();
-    socket.close();
-    return port;
   }
 
   public static InputStream getResourceStream( String resource ) throws IOException {
@@ -201,7 +189,7 @@ public class GatewayAdminFuncTest {
     System.in.read();
   }
 
-  @Test( timeout = MEDIUM_TIMEOUT )
+  @Test( timeout = TestUtils.MEDIUM_TIMEOUT )
   public void testAdminService() throws ClassNotFoundException {
     TestUtils.LOG_ENTER();
 

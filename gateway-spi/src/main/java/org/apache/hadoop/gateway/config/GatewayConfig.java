@@ -38,6 +38,8 @@ public interface GatewayConfig {
   public static final String KRB5_DEBUG = "sun.security.krb5.debug";
   public static final String KRB5_LOGIN_CONFIG = "java.security.auth.login.config";
   public static final String KRB5_USE_SUBJECT_CREDS_ONLY = "javax.security.auth.useSubjectCredsOnly";
+  public static final String SIGNING_KEYSTORE_NAME = "gateway.signing.keystore.name";
+  public static final String SIGNING_KEY_ALIAS = "gateway.signing.key.alias";
 
   /**
    * The location of the gateway configuration.
@@ -59,6 +61,12 @@ public interface GatewayConfig {
    */
   String getGatewayServicesDir();
 
+  /**
+   * The location of the gateway applications's root directory
+   * @return The location of the gateway applications top level directory.
+   */
+  String getGatewayApplicationsDir();
+
   String getHadoopConfDir();
 
   String getGatewayHost();
@@ -78,6 +86,10 @@ public interface GatewayConfig {
   boolean isSSLEnabled();
   
   List<String> getExcludedSSLProtocols();
+
+  List<String> getIncludedSSLCiphers();
+
+  List<String> getExcludedSSLCiphers();
 
   boolean isHadoopKerberosSecured();
 
@@ -109,6 +121,10 @@ public interface GatewayConfig {
 
   int getHttpClientMaxConnections();
 
+  int getHttpClientConnectionTimeout();
+
+  int getHttpClientSocketTimeout();
+
   int getThreadPoolMax();
 
   int getHttpServerRequestBuffer();
@@ -118,5 +134,15 @@ public interface GatewayConfig {
   int getHttpServerResponseBuffer();
 
   int getHttpServerResponseHeaderBuffer();
+
+  int getGatewayDeploymentsBackupVersionLimit();
+
+  long getGatewayDeploymentsBackupAgeLimit();
+
+  String getSigningKeystoreName();
+
+  String getSigningKeyAlias();
+
+  List<String> getGlobalRulesServices();
 
 }

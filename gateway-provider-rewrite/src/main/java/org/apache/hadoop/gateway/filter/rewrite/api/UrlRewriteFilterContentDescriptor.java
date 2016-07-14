@@ -21,7 +21,11 @@ public interface UrlRewriteFilterContentDescriptor extends UrlRewriteFilterGroup
 
   String type();
 
+  String asType();
+
   UrlRewriteFilterContentDescriptor type( String type );
+
+  UrlRewriteFilterContentDescriptor asType( String type );
 
   UrlRewriteFilterBufferDescriptor addBuffer( String path );
 

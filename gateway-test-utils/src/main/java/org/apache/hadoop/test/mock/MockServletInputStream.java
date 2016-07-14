@@ -17,9 +17,11 @@
  */
 package org.apache.hadoop.test.mock;
 
-import javax.servlet.ServletInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+
+import javax.servlet.ReadListener;
+import javax.servlet.ServletInputStream;
 
 public class MockServletInputStream extends ServletInputStream {
 
@@ -32,6 +34,21 @@ public class MockServletInputStream extends ServletInputStream {
   @Override
   public int read() throws IOException {
     return stream.read();
+  }
+
+  @Override
+  public boolean isFinished() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean isReady() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void setReadListener( ReadListener readListener ) {
+    throw new UnsupportedOperationException();
   }
 
 }

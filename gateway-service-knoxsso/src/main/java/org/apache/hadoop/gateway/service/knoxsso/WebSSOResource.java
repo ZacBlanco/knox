@@ -27,6 +27,7 @@ import javax.servlet.ServletContext;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -50,24 +51,30 @@ import static javax.ws.rs.core.MediaType.APPLICATION_XML;
 public class WebSSOResource {
   private static final String SSO_COOKIE_SECURE_ONLY_INIT_PARAM = "knoxsso.cookie.secure.only";
   private static final String SSO_COOKIE_MAX_AGE_INIT_PARAM = "knoxsso.cookie.max.age";
+  private static final String SSO_COOKIE_DOMAIN_SUFFIX_PARAM = "knoxsso.cookie.domain.suffix";
   private static final String SSO_COOKIE_TOKEN_TTL_PARAM = "knoxsso.token.ttl";
+  private static final String SSO_COOKIE_TOKEN_AUDIENCES_PARAM = "knoxsso.token.audiences";
   private static final String SSO_COOKIE_TOKEN_WHITELIST_PARAM = "knoxsso.redirect.whitelist.regex";
+  private static final String SSO_ENABLE_SESSION_PARAM = "knoxsso.enable.session";
   private static final String ORIGINAL_URL_REQUEST_PARAM = "originalUrl";
   private static final String ORIGINAL_URL_COOKIE_NAME = "original-url";
   private static final String JWT_COOKIE_NAME = "hadoop-jwt";
   // default for the whitelist - open up for development - relative paths and localhost only
-  private static final String DEFAULT_WHITELIST = "^/.*$;^https?://localhost:\\d{0,9}/.*$";
+  private static final String DEFAULT_WHITELIST = "^/.*$;^https?://(localhost|127.0.0.1|0:0:0:0:0:0:0:1|::1):\\d{0,9}/.*$";
   static final String RESOURCE_PATH = "/api/v1/websso";
   private static KnoxSSOMessages log = MessagesFactory.get( KnoxSSOMessages.class );
   private boolean secureOnly = true;
   private int maxAge = -1;
   private long tokenTTL = 30000l;
   private String whitelist = null;
+  private String domainSuffix = null;
+  private String[] targetAudiences = null;
+  private boolean enableSession = false;
 
-  @Context 
+  @Context
   private HttpServletRequest request;
 
-  @Context 
+  @Context
   private HttpServletResponse response;
 
   @Context
@@ -94,10 +101,17 @@ public class WebSSOResource {
       }
     }
 
+    domainSuffix = context.getInitParameter(SSO_COOKIE_DOMAIN_SUFFIX_PARAM);
+
     whitelist = context.getInitParameter(SSO_COOKIE_TOKEN_WHITELIST_PARAM);
     if (whitelist == null) {
       // default to local/relative targets
       whitelist = DEFAULT_WHITELIST;
+    }
+
+    String audiences = context.getInitParameter(SSO_COOKIE_TOKEN_AUDIENCES_PARAM);
+    if (audiences != null) {
+      targetAudiences = audiences.split(",");
     }
 
     String ttl = context.getInitParameter(SSO_COOKIE_TOKEN_TTL_PARAM);
@@ -109,6 +123,9 @@ public class WebSSOResource {
         log.invalidTokenTTLEncountered(ttl);
       }
     }
+
+    String enableSession = context.getInitParameter(SSO_ENABLE_SESSION_PARAM);
+    this.enableSession = ("true".equals(enableSession));
   }
 
   @GET
@@ -125,7 +142,7 @@ public class WebSSOResource {
 
   private Response getAuthenticationToken(int statusCode) {
     GatewayServices services = (GatewayServices) request.getServletContext()
-        .getAttribute(GatewayServices.GATEWAY_SERVICES_ATTRIBUTE);
+            .getAttribute(GatewayServices.GATEWAY_SERVICES_ATTRIBUTE);
     boolean removeOriginalUrlCookie = true;
     String original = getCookieValue((HttpServletRequest) request, ORIGINAL_URL_COOKIE_NAME);
     if (original == null) {
@@ -141,7 +158,7 @@ public class WebSSOResource {
       if (!validRedirect) {
         log.whiteListMatchFail(original, whitelist);
         throw new WebApplicationException("Original URL not valid according to the configured whitelist.",
-            Response.Status.BAD_REQUEST);
+                Response.Status.BAD_REQUEST);
       }
     }
 
@@ -149,14 +166,16 @@ public class WebSSOResource {
     Principal p = ((HttpServletRequest)request).getUserPrincipal();
 
     try {
-      JWT token = ts.issueToken(p, "RS256", System.currentTimeMillis() + tokenTTL);
-      
-      addJWTHadoopCookie(original, token);
-      
+      JWT token = ts.issueToken(p, "RS256", getExpiry());
+      // Coverity CID 1327959
+      if( token != null ) {
+        addJWTHadoopCookie( original, token );
+      }
+
       if (removeOriginalUrlCookie) {
         removeOriginalUrlCookie(response);
       }
-      
+
       log.aboutToRedirectToOriginal(original);
       response.setStatus(statusCode);
       response.setHeader("Location", original);
@@ -169,7 +188,35 @@ public class WebSSOResource {
     catch (TokenServiceException e) {
       log.unableToIssueToken(e);
     }
-    return null;
+    URI location = null;
+    try {
+      location = new URI(original);
+    }
+    catch(URISyntaxException urise) {
+      // todo log return error response
+    }
+
+    if (!enableSession) {
+      // invalidate the session to avoid autologin
+      // Coverity CID 1352857
+      HttpSession session = request.getSession(false);
+      if( session != null ) {
+        session.invalidate();
+      }
+    }
+
+    return Response.seeOther(location).entity("{ \"redirectTo\" : " + original + " }").build();
+  }
+
+  private long getExpiry() {
+    long expiry = 0l;
+    if (tokenTTL == -1) {
+      expiry = -1;
+    }
+    else {
+      expiry = System.currentTimeMillis() + tokenTTL;
+    }
+    return expiry;
   }
 
   private void addJWTHadoopCookie(String original, JWT token) {
@@ -177,8 +224,10 @@ public class WebSSOResource {
     Cookie c = new Cookie(JWT_COOKIE_NAME,  token.toString());
     c.setPath("/");
     try {
-      String domain = getDomainName(original);
-      c.setDomain(domain);
+      String domain = Urls.getDomainName(original, domainSuffix);
+      if (domain != null) {
+        c.setDomain(domain);
+      }
       c.setHttpOnly(true);
       if (secureOnly) {
         c.setSecure(true);
@@ -202,32 +251,14 @@ public class WebSSOResource {
     response.addCookie(c);
   }
 
-  String getDomainName(String url) throws URISyntaxException {
-    URI uri = new URI(url);
-    String domain = uri.getHost();
-    // if accessing via ip address do not wildcard the cookie domain
-    if (Urls.isIp(domain)) {
-      return domain;
-    }
-    if (Urls.dotOccurrences(domain) < 2) {
-      if (!domain.startsWith(".")) {
-        domain = "." + domain;
-      }
-      return domain;
-    }
-    int idx = domain.indexOf('.');
-    if (idx == -1) {
-      idx = 0;
-    }
-    return domain.substring(idx);
-  }
-
   private String getCookieValue(HttpServletRequest request, String name) {
     Cookie[] cookies = request.getCookies();
     String value = null;
-    for(Cookie cookie : cookies){
-      if(name.equals(cookie.getName())){
+    if (cookies != null) {
+      for(Cookie cookie : cookies){
+        if(name.equals(cookie.getName())){
           value = cookie.getValue();
+        }
       }
     }
     if (value == null) {

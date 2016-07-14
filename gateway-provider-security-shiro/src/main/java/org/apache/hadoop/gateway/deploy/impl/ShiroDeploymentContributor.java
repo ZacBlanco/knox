@@ -21,12 +21,15 @@ import org.apache.hadoop.gateway.deploy.DeploymentContext;
 import org.apache.hadoop.gateway.deploy.ProviderDeploymentContributorBase;
 import org.apache.hadoop.gateway.descriptor.FilterParamDescriptor;
 import org.apache.hadoop.gateway.descriptor.ResourceDescriptor;
+import org.apache.hadoop.gateway.filter.RedirectToUrlFilter;
+import org.apache.hadoop.gateway.filter.ResponseCookieFilter;
 import org.apache.hadoop.gateway.topology.Provider;
 import org.apache.hadoop.gateway.topology.Service;
 import org.jboss.shrinkwrap.api.asset.StringAsset;
 import org.jboss.shrinkwrap.descriptor.api.webapp30.WebAppDescriptor;
 import org.jboss.shrinkwrap.descriptor.api.webcommon30.SessionConfigType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +39,9 @@ public class ShiroDeploymentContributor extends ProviderDeploymentContributorBas
   private static final String SHIRO_FILTER_CLASSNAME = "org.apache.shiro.web.servlet.ShiroFilter";
   private static final String POST_FILTER_CLASSNAME = "org.apache.hadoop.gateway.filter.ShiroSubjectIdentityAdapter";
   private static final String COOKIE_FILTER_CLASSNAME = "org.apache.hadoop.gateway.filter.ResponseCookieFilter";
+  private static final String REDIRECT_FILTER_CLASSNAME = "org.apache.hadoop.gateway.filter.RedirectToUrlFilter";
   private static final String SESSION_TIMEOUT = "sessionTimeout";
+  private static final String REMEMBER_ME = "rememberme";
   private static final String SHRIO_CONFIG_FILE_NAME = "shiro.ini";
   private static final int DEFAULT_SESSION_TIMEOUT = 30; // 30min
 
@@ -88,7 +93,8 @@ public class ShiroDeploymentContributor extends ProviderDeploymentContributorBas
   }
 
   @Override
-  public void contributeFilter( DeploymentContext context, Provider provider, Service service, ResourceDescriptor resource, List<FilterParamDescriptor> params ) {
+  public void contributeFilter( DeploymentContext context, Provider provider,
+      Service service, ResourceDescriptor resource, List<FilterParamDescriptor> params ) {
     // Leveraging a third party filter is a primary usecase for Knox
     // in order to do so, we need to make sure that the end result of the third party integration
     // puts a standard javax.security.auth.Subject on the current thread through a doAs.
@@ -97,8 +103,38 @@ public class ShiroDeploymentContributor extends ProviderDeploymentContributorBas
 
     // You may also need to do some additional processing of the response in order to not return cookies or other
     // filter specifics that are not needed for integration with Knox. Below we do that in the pre-processing filter.
-    resource.addFilter().name( "Pre" + getName() ).role( getRole() ).impl( COOKIE_FILTER_CLASSNAME ).params( params );
-    resource.addFilter().name( getName() ).role( getRole() ).impl( SHIRO_FILTER_CLASSNAME ).params( params );
-    resource.addFilter().name( "Post" + getName() ).role( getRole() ).impl( POST_FILTER_CLASSNAME ).params( params );
+    if (params == null) {
+      params = new ArrayList<FilterParamDescriptor>();
+    }
+    Map<String, String> providerParams = provider.getParams();
+    String redirectToUrl = providerParams.get(RedirectToUrlFilter.REDIRECT_TO_URL);
+    if (redirectToUrl != null) {
+      params.add( resource.createFilterParam()
+          .name(RedirectToUrlFilter.REDIRECT_TO_URL)
+          .value(redirectToUrl));
+      resource.addFilter().name( "Redirect" + getName() ).role(
+          getRole() ).impl( REDIRECT_FILTER_CLASSNAME ).params( params );
+      params.clear();
+    }
+
+    String cookies = providerParams.get( ResponseCookieFilter.RESTRICTED_COOKIES );
+    if (cookies == null) {
+      params.add( resource.createFilterParam()
+          .name( ResponseCookieFilter.RESTRICTED_COOKIES )
+          .value( REMEMBER_ME ) );
+    }
+    else {
+      params.add( resource.createFilterParam()
+          .name(ResponseCookieFilter.RESTRICTED_COOKIES ).value( cookies ) );
+    }
+
+    resource.addFilter().name( "Pre" + getName() ).role(
+        getRole() ).impl( COOKIE_FILTER_CLASSNAME ).params( params );
+    params.clear();
+
+    resource.addFilter().name( getName() ).role(
+        getRole() ).impl( SHIRO_FILTER_CLASSNAME ).params( params );
+    resource.addFilter().name( "Post" + getName() ).role(
+        getRole() ).impl( POST_FILTER_CLASSNAME ).params( params );
   }
 }

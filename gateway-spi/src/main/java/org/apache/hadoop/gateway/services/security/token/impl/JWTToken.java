@@ -20,6 +20,8 @@ package org.apache.hadoop.gateway.services.security.token.impl;
 import java.io.UnsupportedEncodingException;
 import java.text.ParseException;
 import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.hadoop.gateway.i18n.messages.MessagesFactory;
 
@@ -51,17 +53,34 @@ public class JWTToken implements JWT {
     try {
       jwt = SignedJWT.parse(serializedJWT);
     } catch (ParseException e) {
-      e.printStackTrace();
+      log.unableToParseToken(e);
     }
   }
 
   public JWTToken(String alg, String[] claimsArray) {
+    this(alg, claimsArray, null);
+  }
+
+  public JWTToken(String alg, String[] claimsArray, List<String> audiences) {
     JWSHeader header = new JWSHeader(new JWSAlgorithm(alg));
-    JWTClaimsSet claims = new JWTClaimsSet();
-    claims.setIssuer(claimsArray[0]);
-    claims.setSubject(claimsArray[1]);
-    claims.setAudience(claimsArray[2]);
-    claims.setExpirationTime(new Date(Long.parseLong(claimsArray[3])));
+
+    if (claimsArray[2] != null) {
+      if (audiences == null) {
+        audiences = new ArrayList<String>();
+      }
+      audiences.add(claimsArray[2]);
+    }
+    JWTClaimsSet claims = null;
+    JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
+    .issuer(claimsArray[0])
+    .subject(claimsArray[1])
+    .audience(audiences);
+    if(claimsArray[3] != null) {
+      builder = builder.expirationTime(new Date(Long.parseLong(claimsArray[3])));
+    }
+    
+    claims = builder.build();
+
     jwt = new SignedJWT(header, claims);
   }
 
@@ -85,7 +104,7 @@ public class JWTToken implements JWT {
       claims = (JWTClaimsSet) jwt.getJWTClaimsSet();
       c = claims.toJSONObject().toJSONString();
     } catch (ParseException e) {
-      e.printStackTrace();
+      log.unableToParseToken(e);
     }
     return c;
   }
@@ -145,8 +164,7 @@ public class JWTToken implements JWT {
     try {
       claim = jwt.getJWTClaimsSet().getStringClaim(claimName);
     } catch (ParseException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      log.unableToParseToken(e);
     }
     
     return claim;
@@ -194,8 +212,7 @@ public class JWTToken implements JWT {
     try {
       claims = jwt.getJWTClaimsSet().getStringArrayClaim(JWT.AUDIENCE);
     } catch (ParseException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      log.unableToParseToken(e);
     }
 
     return claims;
@@ -215,8 +232,7 @@ public class JWTToken implements JWT {
     try {
       date = jwt.getJWTClaimsSet().getExpirationTime();
     } catch (ParseException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      log.unableToParseToken(e);
     }
     return date;
   }
@@ -238,8 +254,7 @@ public class JWTToken implements JWT {
     try {
       jwt.sign(signer);
     } catch (JOSEException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      log.unableToSignToken(e);
     }
   }
 
@@ -254,7 +269,7 @@ public class JWTToken implements JWT {
       rc = jwt.verify(verifier);
     } catch (JOSEException e) {
       // TODO Auto-generated catch block
-      e.printStackTrace();
+      log.unableToVerifyToken(e);
     }
     
     return rc;

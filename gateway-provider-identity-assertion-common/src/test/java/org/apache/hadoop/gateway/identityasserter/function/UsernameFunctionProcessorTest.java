@@ -24,14 +24,15 @@ import org.apache.hadoop.gateway.filter.rewrite.spi.UrlRewriteFunctionProcessor;
 import org.apache.hadoop.gateway.identityasserter.common.function.UsernameFunctionProcessor;
 import org.apache.hadoop.gateway.security.PrimaryPrincipal;
 import org.apache.hadoop.gateway.util.urltemplate.Parser;
+import org.apache.hadoop.test.TestUtils;
 import org.apache.hadoop.test.log.NoOpLogger;
 import org.apache.hadoop.test.mock.MockInteraction;
 import org.apache.hadoop.test.mock.MockServlet;
 import org.apache.http.auth.BasicUserPrincipal;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.testing.HttpTester;
-import org.eclipse.jetty.testing.ServletTester;
+import org.eclipse.jetty.http.HttpTester;
+import org.eclipse.jetty.servlet.ServletTester;
 import org.eclipse.jetty.util.ArrayQueue;
 import org.eclipse.jetty.util.log.Log;
 import org.hamcrest.core.Is;
@@ -50,6 +51,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -68,8 +70,8 @@ import static org.junit.Assert.fail;
 public class UsernameFunctionProcessorTest {
 
   private ServletTester server;
-  private HttpTester request;
-  private HttpTester response;
+  private HttpTester.Request request;
+  private HttpTester.Response response;
   private ArrayQueue<MockInteraction> interactions;
   private MockInteraction interaction;
 
@@ -108,8 +110,8 @@ public class UsernameFunctionProcessorTest {
     server.start();
 
     interaction = new MockInteraction();
-    request = new HttpTester();
-    response = new HttpTester();
+    request = HttpTester.newRequest();
+    response = null;
   }
 
   @After
@@ -181,19 +183,17 @@ public class UsernameFunctionProcessorTest {
         .queryParam( "test-query-input-name", "test-query-input-value" )
         .queryParam( "test-query-output-name", "test-query-output-value" )
         .contentType( "text/xml" )
-        .characterEncoding( "UTF-8" )
         .content( expect, Charset.forName( "UTF-8" ) );
-    interaction.respond()
-        .status( 200 );
+    interaction.respond().status( 200 );
     interactions.add( interaction );
     request.setMethod( "PUT" );
     request.setURI( "/test-input-path?test-query-input-name=test-query-input-value" );
-    request.setVersion( "HTTP/1.1" );
+    //request.setVersion( "HTTP/1.1" );
     request.setHeader( "Host", "test-input-host:777" );
-    request.setContentType( "text/xml; charset=UTF-8" );
+    request.setHeader( "Content-Type", "text/xml; charset=UTF-8" );
     request.setContent( input );
 
-    response.parse( server.getResponses( request.generate() ) );
+    response = TestUtils.execute( server, request );
 
     // Test the results.
     assertThat( response.getStatus(), Is.is( 200 ) );

@@ -22,7 +22,7 @@
     <parent>
         <groupId>org.apache.knox</groupId>
         <artifactId>gateway</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.10.0-SNAPSHOT</version>
     </parent>
     <artifactId>gateway-server</artifactId>
 
@@ -57,17 +57,6 @@
     </build>
 
     <dependencies>
-
-        <!--
-        <dependency>
-            <groupId>javax.servlet</groupId>
-            <artifactId>javax.servlet-api</artifactId>
-        </dependency>
-        -->
-        <dependency>
-            <groupId>org.eclipse.jetty.orbit</groupId>
-            <artifactId>javax.servlet</artifactId>
-        </dependency>
 
         <dependency>
             <groupId>org.eclipse.persistence</groupId>
@@ -120,6 +109,10 @@
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-webapp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
         </dependency>
         <!--
         <dependency>
@@ -190,6 +183,31 @@
             <groupId>org.apache.knox</groupId>
             <artifactId>gateway-server-xforwarded-filter</artifactId>
         </dependency>
+        <dependency>
+            <groupId>net.lingala.zip4j</groupId>
+            <artifactId>zip4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+        </dependency>
+
+        <!--
+        These dependencies (jetty-annotations, apache-jsp, apache-jstl) are required for JSP support.
+        The need to be late in the classpath for some reason otherwise class loading issues occur.
+        -->
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-annotations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>apache-jsp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>apache-jstl</artifactId>
+        </dependency>
 
         <!-- ********** ********** ********** ********** ********** ********** -->
         <!-- ********** Test Dependencies                           ********** -->
@@ -203,7 +221,7 @@
 
         <dependency>
             <groupId>${gateway-group}</groupId>
-            <artifactId>gateway-test-ldap</artifactId>
+            <artifactId>gateway-demo-ldap</artifactId>
             <scope>test</scope>
         </dependency>
 

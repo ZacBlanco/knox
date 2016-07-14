@@ -26,9 +26,11 @@ import org.apache.hadoop.gateway.audit.api.Auditor;
 import org.apache.hadoop.gateway.audit.api.ResourceType;
 import org.apache.hadoop.gateway.audit.log4j.audit.AuditConstants;
 import org.apache.hadoop.gateway.config.Configure;
+import org.apache.hadoop.gateway.config.Default;
 import org.apache.hadoop.gateway.config.GatewayConfig;
 import org.apache.hadoop.gateway.i18n.messages.MessagesFactory;
 import org.apache.hadoop.gateway.i18n.resources.ResourcesFactory;
+import org.apache.hadoop.gateway.util.MimeTypes;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -55,8 +57,8 @@ import java.util.Set;
  */
 public class DefaultDispatch extends AbstractGatewayDispatch {
 
-  protected static final String SET_COOKIE = "Set-Cookie";
-  protected static final String WWW_AUTHENTICATE = "WWW-Authenticate";
+  protected static final String SET_COOKIE = "SET-COOKIE";
+  protected static final String WWW_AUTHENTICATE = "WWW-AUTHENTICATE";
 
   protected static SpiGatewayMessages LOG = MessagesFactory.get(SpiGatewayMessages.class);
   protected static SpiGatewayResources RES = ResourcesFactory.get(SpiGatewayResources.class);
@@ -65,10 +67,12 @@ public class DefaultDispatch extends AbstractGatewayDispatch {
 
   private Set<String> outboundResponseExcludeHeaders;
 
+  //Buffer size in bytes
   private int replayBufferSize = -1;
 
   @Override
   public void init() {
+    super.init();
     outboundResponseExcludeHeaders = new HashSet<>();
     outboundResponseExcludeHeaders.add(SET_COOKIE);
     outboundResponseExcludeHeaders.add(WWW_AUTHENTICATE);
@@ -80,13 +84,28 @@ public class DefaultDispatch extends AbstractGatewayDispatch {
   }
 
   protected int getReplayBufferSize() {
+    if (replayBufferSize > 0) {
+      return Math.abs(replayBufferSize/1024);
+    }
     return replayBufferSize;
   }
 
   @Configure
-  protected void setReplayBufferSize(int size) {
+  protected void setReplayBufferSize(@Default("-1")int size) {
+    setReplayBufferSizeInBytes(size);
+  }
+
+  protected int getReplayBufferSizeInBytes() {
+    return replayBufferSize;
+  }
+
+  protected void setReplayBufferSizeInBytes(int size) {
+    if (size > 0) {
+      size *= 1024;
+    }
     replayBufferSize = size;
   }
+
 
   protected void executeRequest(
          HttpUriRequest outboundRequest,
@@ -141,7 +160,7 @@ public class DefaultDispatch extends AbstractGatewayDispatch {
     }
     for ( Header header : headers ) {
       String name = header.getName();
-      if (hasExcludeHeaders && excludeHeaders.contains(name)) {
+      if (hasExcludeHeaders && excludeHeaders.contains(name.toUpperCase())) {
         continue;
       }
       String value = header.getValue();
@@ -149,11 +168,8 @@ public class DefaultDispatch extends AbstractGatewayDispatch {
     }
 
     HttpEntity entity = inboundResponse.getEntity();
-    if ( entity != null ) {
-      Header contentType = entity.getContentType();
-      if ( contentType != null ) {
-        outboundResponse.setContentType(contentType.getValue());
-      }
+    if( entity != null ) {
+      outboundResponse.setContentType( getInboundResponseContentType( entity ) );
       //KM[ If this is set here it ends up setting the content length to the content returned from the server.
       // This length might not match if the the content is rewritten.
       //      long contentLength = entity.getContentLength();
@@ -168,6 +184,32 @@ public class DefaultDispatch extends AbstractGatewayDispatch {
         closeInboundResponse( inboundResponse, stream );
       }
     }
+  }
+
+  private String getInboundResponseContentType( final HttpEntity entity ) {
+    String fullContentType = null;
+    if( entity != null ) {
+      ContentType entityContentType = ContentType.get( entity );
+      if( entityContentType != null ) {
+        if( entityContentType.getCharset() == null ) {
+          final String entityMimeType = entityContentType.getMimeType();
+          final String defaultCharset = MimeTypes.getDefaultCharsetForMimeType( entityMimeType );
+          if( defaultCharset != null ) {
+            LOG.usingDefaultCharsetForEntity( entityMimeType, defaultCharset );
+            entityContentType = entityContentType.withCharset( defaultCharset );
+          }
+        } else {
+          LOG.usingExplicitCharsetForEntity( entityContentType.getMimeType(), entityContentType.getCharset() );
+        }
+        fullContentType = entityContentType.toString();
+      }
+    }
+    if( fullContentType == null ) {
+      LOG.unknownResponseEntityContentType();
+    } else {
+      LOG.inboundResponseEntityContentType( fullContentType );
+    }
+    return fullContentType;
   }
 
   protected void closeInboundResponse( HttpResponse response, InputStream stream ) throws IOException {
@@ -215,7 +257,7 @@ public class DefaultDispatch extends AbstractGatewayDispatch {
         if (replayBufferSize < 0) {
           replayBufferSize = config.getHttpServerRequestBuffer();
         }
-        if (!delegationTokenPresent) {
+        if (!delegationTokenPresent && replayBufferSize > 0 ) {
           entity = new PartiallyRepeatableHttpEntity(entity, replayBufferSize);
         }
       }
@@ -226,9 +268,11 @@ public class DefaultDispatch extends AbstractGatewayDispatch {
    @Override
    public void doGet(URI url, HttpServletRequest request, HttpServletResponse response)
          throws IOException, URISyntaxException {
-     HttpGet method = new HttpGet(url);
+      HttpGet method = new HttpGet(url);
       // https://issues.apache.org/jira/browse/KNOX-107 - Service URLs not rewritten for WebHDFS GET redirects
-      method.getParams().setBooleanParameter("http.protocol.handle-redirects", false);
+      // This is now taken care of in DefaultHttpClientFactory.createHttpClient
+      // and setting params here causes configuration setup there to be ignored there.
+      // method.getParams().setBooleanParameter("http.protocol.handle-redirects", false);
       copyRequestHeaderFields(method, request);
       executeRequest(method, request, response);
    }
@@ -271,4 +315,5 @@ public class DefaultDispatch extends AbstractGatewayDispatch {
   public Set<String> getOutboundResponseExcludeHeaders() {
     return outboundResponseExcludeHeaders;
   }
+
 }

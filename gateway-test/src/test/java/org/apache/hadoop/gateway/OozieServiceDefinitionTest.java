@@ -47,10 +47,7 @@ import static org.hamcrest.xml.HasXPath.hasXPath;
 
 public class OozieServiceDefinitionTest {
 
-  private static final long SHORT_TIMEOUT = 1000L;
-  private static final long MEDIUM_TIMEOUT = 5 * SHORT_TIMEOUT;
-
-  @Test( timeout = MEDIUM_TIMEOUT )
+  @Test( timeout = TestUtils.MEDIUM_TIMEOUT )
   public void testOozieRewriteRulesForLiteralTemplateValuesBugKnox394() throws Exception {
     LOG_ENTER();
 
@@ -103,7 +100,7 @@ public class OozieServiceDefinitionTest {
     LOG_EXIT();
   }
 
-  @Test( timeout = MEDIUM_TIMEOUT )
+  @Test( timeout = TestUtils.MEDIUM_TIMEOUT )
   public void testOozieRewriteRulesForLiteralComplexTemplateValuesBugKnox394() throws Exception {
     LOG_ENTER();
 
@@ -156,7 +153,7 @@ public class OozieServiceDefinitionTest {
     LOG_EXIT();
   }
 
-  @Test( timeout = MEDIUM_TIMEOUT )
+  @Test( timeout = TestUtils.MEDIUM_TIMEOUT )
   public void testOozieRewriteRulesForValuesRelativeToServiceRegistry() throws Exception {
     LOG_ENTER();
 
@@ -181,6 +178,7 @@ public class OozieServiceDefinitionTest {
     HttpServletRequest servletRequest = EasyMock.createNiceMock( HttpServletRequest.class );
     EasyMock.expect( servletRequest.getInputStream() ).andReturn( new MockServletInputStream( TestUtils.getResourceStream( OozieServiceDefinitionTest.class, testResource ) ) ).anyTimes();
     EasyMock.expect( servletRequest.getContentType() ).andReturn( "text/xml" ).anyTimes();
+    EasyMock.expect( servletRequest.getContentLength() ).andReturn( -1 ).anyTimes();
 
     FilterConfig filterConfig = EasyMock.createNiceMock( FilterConfig.class );
     EasyMock.expect( filterConfig.getServletContext() ).andReturn( servletContext ).anyTimes();

@@ -29,8 +29,12 @@ public interface KeystoreService {
   void addSelfSignedCertForGateway(String alias, char[] passphrase, String hostname) throws KeystoreServiceException;
 
   public KeyStore getKeystoreForGateway() throws KeystoreServiceException;
-  
+
+  public KeyStore getSigningKeystore() throws KeystoreServiceException;
+
   public Key getKeyForGateway(String alias, char[] passphrase) throws KeystoreServiceException;
+
+  public Key getSigningKey(String alias, char[] passphrase) throws KeystoreServiceException;
 
   public void createCredentialStoreForCluster(String clusterName) throws KeystoreServiceException;
   
@@ -45,4 +49,6 @@ public interface KeystoreService {
   public void removeCredentialForCluster(String clusterName, String alias) throws KeystoreServiceException;
 
   public char[] getCredentialForCluster(String clusterName, String alias) throws KeystoreServiceException;
+
+  public String getKeystorePath();
 }

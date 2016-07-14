@@ -25,19 +25,6 @@ import org.junit.Test;
  *
  */
 public class WebSSOResourceTest {
-  @Test
-  public void testDomainNameCreation() throws Exception {
-    WebSSOResource resource = new WebSSOResource();
-    // determine parent domain and wildcard the cookie domain with a dot prefix
-    Assert.assertTrue(resource.getDomainName("http://www.local.com").equals(".local.com"));
-    Assert.assertTrue(resource.getDomainName("http://ljm.local.com").equals(".local.com"));
-    Assert.assertTrue(resource.getDomainName("http://local.home").equals(".local.home"));
-    Assert.assertTrue(resource.getDomainName("http://localhost").equals(".localhost")); // chrome may not allow this
-    Assert.assertTrue(resource.getDomainName("http://local.home.test.com").equals(".home.test.com"));
-    
-    // ip addresses can not be wildcarded - may be a completely different domain
-    Assert.assertTrue(resource.getDomainName("http://127.0.0.1").equals("127.0.0.1"));
-  }
 
   @Test
   public void testWhitelistMatching() throws Exception {

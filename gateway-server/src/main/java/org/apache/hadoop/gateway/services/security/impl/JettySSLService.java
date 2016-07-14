@@ -17,14 +17,20 @@
  */
 package org.apache.hadoop.gateway.services.security.impl;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.X509Certificate;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-
 import javax.security.auth.x500.X500Principal;
 
 import org.apache.hadoop.gateway.GatewayMessages;
@@ -38,8 +44,6 @@ import org.apache.hadoop.gateway.services.security.KeystoreServiceException;
 import org.apache.hadoop.gateway.services.security.MasterService;
 import org.apache.hadoop.gateway.services.security.SSLService;
 import org.apache.hadoop.gateway.util.X500PrincipalParser;
-import org.eclipse.jetty.server.ssl.SslConnector;
-import org.eclipse.jetty.server.ssl.SslSelectChannelConnector;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 
 public class JettySSLService implements SSLService {
@@ -51,6 +55,8 @@ public class JettySSLService implements SSLService {
   private MasterService ms;
   private KeystoreService ks;
   private AliasService as;
+  private List<String> sslIncludeCiphers = null;
+  private List<String> sslExcludeCiphers = null;
   private List<String> sslExcludeProtocols = null;
   private boolean clientAuthNeeded;
   private boolean trustAllCerts;
@@ -116,6 +122,8 @@ public class JettySSLService implements SSLService {
     }
 
     keystoreType = config.getKeystoreType();
+    sslIncludeCiphers = config.getIncludedSSLCiphers();
+    sslExcludeCiphers = config.getExcludedSSLCiphers();
     sslExcludeProtocols = config.getExcludedSSLProtocols();
     clientAuthNeeded = config.isClientAuthNeeded();
     truststorePath = config.getTruststorePath();
@@ -157,8 +165,8 @@ public class JettySSLService implements SSLService {
       throw new ServiceLifecycleException("Public certificate for the gateway is not of the expected type of X509Certificate. Something is wrong with the gateway keystore.");
     }
   }
-  
-  public Object buildSSlConnector( String keystoreFileName ) {
+
+  public Object buildSslContextFactory( String keystoreFileName ) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
     SslContextFactory sslContextFactory = new SslContextFactory( true );
     sslContextFactory.setCertAlias( "gateway-identity" );
     sslContextFactory.setKeyStoreType(keystoreType);
@@ -180,7 +188,7 @@ public class JettySSLService implements SSLService {
     String truststorePassword = null;
     if (clientAuthNeeded) {
       if (truststorePath != null) {
-        sslContextFactory.setTrustStore(truststorePath);
+        sslContextFactory.setTrustStore(loadKeyStore(keystoreFileName, keystoreType, master));
         char[] truststorePwd = null;
         try {
           truststorePwd = as.getPasswordFromAliasForGateway(GATEWAY_TRUSTSTORE_PASSWORD);
@@ -199,19 +207,23 @@ public class JettySSLService implements SSLService {
       else {
         // when clientAuthIsNeeded but no truststore provided
         // default to the server's keystore and details
-        sslContextFactory.setTrustStore(keystoreFileName);
+        sslContextFactory.setTrustStore(loadKeyStore(keystoreFileName, keystoreType, master));
         sslContextFactory.setTrustStorePassword(new String(master));
         sslContextFactory.setTrustStoreType(keystoreType);
       }
     }
     sslContextFactory.setNeedClientAuth( clientAuthNeeded );
     sslContextFactory.setTrustAll( trustAllCerts );
-    if (sslExcludeProtocols != null) {
-      sslContextFactory.setExcludeProtocols((String[]) sslExcludeProtocols.toArray());
+    if (sslIncludeCiphers != null && !sslIncludeCiphers.isEmpty()) {
+      sslContextFactory.setIncludeCipherSuites( sslIncludeCiphers.toArray(new String[sslIncludeCiphers.size()]) );
     }
-    SslConnector sslConnector = new SslSelectChannelConnector( sslContextFactory );
-
-    return sslConnector;
+    if (sslExcludeCiphers != null && !sslExcludeCiphers.isEmpty()) {
+      sslContextFactory.setExcludeCipherSuites( sslExcludeCiphers.toArray(new String[sslExcludeCiphers.size()]) );
+    }
+    if (sslExcludeProtocols != null && !sslExcludeProtocols.isEmpty()) {
+      sslContextFactory.setExcludeProtocols( sslExcludeProtocols.toArray(new String[sslExcludeProtocols.size()]) );
+    }
+    return sslContextFactory;
   }
   
   @Override
@@ -225,4 +237,19 @@ public class JettySSLService implements SSLService {
     // TODO Auto-generated method stub
     
   }
+
+  private static KeyStore loadKeyStore( String fileName, String storeType, char[] storePass ) throws CertificateException, NoSuchAlgorithmException, IOException, KeyStoreException {
+    KeyStore keystore = KeyStore.getInstance(storeType);
+    //Coverity CID 1352655
+    InputStream is = new FileInputStream(fileName);
+    try {
+      keystore.load( is, storePass );
+    } finally {
+      if( is != null ) {
+        is.close();
+      }
+    }
+    return keystore;
+  }
+
 }

@@ -17,13 +17,22 @@
  */
 package org.apache.hadoop.test;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.junit.Test;
-import org.w3c.dom.Document;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.StringWriter;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.util.Properties;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -33,17 +42,28 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.StringWriter;
-import java.net.URL;
-import java.util.UUID;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.log4j.Logger;
+import org.apache.velocity.Template;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.VelocityEngine;
+import org.apache.velocity.runtime.RuntimeConstants;
+import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
+import org.eclipse.jetty.http.HttpTester;
+import org.eclipse.jetty.servlet.ServletTester;
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 public class TestUtils {
+
+  private static Logger LOG = Logger.getLogger(TestUtils.class);
+
+  public static final long SHORT_TIMEOUT = 1000L;
+  public static final long MEDIUM_TIMEOUT = 20 * 1000L;
+  public static final long LONG_TIMEOUT = 60 * 1000L;
 
   public static String getResourceName( Class clazz, String name ) {
     name = clazz.getName().replaceAll( "\\.", "/" ) + "/" + name;
@@ -117,12 +137,109 @@ public class TestUtils {
 
   public static void LOG_ENTER() {
     StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
+    System.out.flush();
     System.out.println( String.format( "Running %s#%s", caller.getClassName(), caller.getMethodName() ) );
+    System.out.flush();
   }
 
   public static void LOG_EXIT() {
     StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
+    System.out.flush();
     System.out.println( String.format( "Exiting %s#%s", caller.getClassName(), caller.getMethodName() ) );
+    System.out.flush();
   }
+
+  public static void awaitPortOpen( InetSocketAddress address, int timeout, int delay ) throws InterruptedException {
+    long maxTime = System.currentTimeMillis() + timeout;
+    do {
+      try {
+        Socket socket = new Socket();
+        socket.connect( address, delay );
+        socket.close();
+        return;
+      } catch ( IOException e ) {
+        //e.printStackTrace();
+      }
+    } while( System.currentTimeMillis() < maxTime );
+    throw new IllegalStateException( "Timed out " + timeout + " waiting for port " + address );
+  }
+
+  public static void awaitNon404HttpStatus( URL url, int timeout, int delay ) throws InterruptedException {
+    long maxTime = System.currentTimeMillis() + timeout;
+    do {
+      Thread.sleep( delay );
+      HttpURLConnection conn = null;
+      try {
+        conn = (HttpURLConnection)url.openConnection();
+        conn.getInputStream().close();
+        return;
+      } catch ( IOException e ) {
+        //e.printStackTrace();
+        try {
+          if( conn != null && conn.getResponseCode() != 404 ) {
+            return;
+          }
+        } catch ( IOException ee ) {
+          //ee.printStackTrace();
+        }
+      }
+    } while( System.currentTimeMillis() < maxTime );
+    throw new IllegalStateException( "Timed out " + timeout + " waiting for URL " + url );
+  }
+
+  public static String merge( String resource, Properties properties ) {
+    ClasspathResourceLoader loader = new ClasspathResourceLoader();
+    loader.getResourceStream( resource );
+
+    VelocityEngine engine = new VelocityEngine();
+    Properties config = new Properties();
+    config.setProperty( RuntimeConstants.RUNTIME_LOG_LOGSYSTEM_CLASS, "org.apache.velocity.runtime.log.NullLogSystem" );
+    config.setProperty( RuntimeConstants.RESOURCE_LOADER, "classpath" );
+    config.setProperty( "classpath.resource.loader.class", ClasspathResourceLoader.class.getName() );
+    engine.init( config );
+
+    VelocityContext context = new VelocityContext( properties );
+    Template template = engine.getTemplate( resource );
+    StringWriter writer = new StringWriter();
+    template.merge( context, writer );
+    return writer.toString();
+  }
+
+  public static String merge( Class base, String resource, Properties properties ) {
+    String baseResource = base.getName().replaceAll( "\\.", "/" );
+    String fullResource = baseResource + "/" + resource;
+    return merge( fullResource, properties );
+  }
+
+  public static int findFreePort() throws IOException {
+    ServerSocket socket = new ServerSocket(0);
+    int port = socket.getLocalPort();
+    socket.close();
+    return port;
+  }
+
+  public static void waitUntilNextSecond() {
+    long before = System.currentTimeMillis();
+    long wait;
+    while( ( wait = ( 1000 - ( System.currentTimeMillis() - before ) ) ) > 0 ) {
+      try {
+        Thread.sleep( wait );
+      } catch( InterruptedException e ) {
+        // Ignore.
+      }
+    }
+  }
+
+  public static HttpTester.Response execute( ServletTester server, HttpTester.Request request ) throws Exception {
+    LOG.debug( "execute: request=" + request );
+    ByteBuffer requestBuffer = request.generate();
+    LOG.trace( "execute: requestBuffer=[" + new String(requestBuffer.array(),0,requestBuffer.limit()) + "]" );
+    ByteBuffer responseBuffer = server.getResponses( requestBuffer, 30, TimeUnit.SECONDS );
+    HttpTester.Response response = HttpTester.parseResponse( responseBuffer );
+    LOG.trace( "execute: responseBuffer=[" + new String(responseBuffer.array(),0,responseBuffer.limit()) + "]" );
+    LOG.debug( "execute: reponse=" + response );
+    return response;
+  }
+
 
 }

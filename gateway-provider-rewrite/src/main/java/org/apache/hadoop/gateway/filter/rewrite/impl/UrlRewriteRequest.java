@@ -28,6 +28,7 @@ import org.apache.hadoop.gateway.filter.rewrite.api.UrlRewriteStreamFilterFactor
 import org.apache.hadoop.gateway.filter.rewrite.api.UrlRewriter;
 import org.apache.hadoop.gateway.filter.rewrite.i18n.UrlRewriteMessages;
 import org.apache.hadoop.gateway.i18n.messages.MessagesFactory;
+import org.apache.hadoop.gateway.util.MimeTypes;
 import org.apache.hadoop.gateway.util.urltemplate.Parser;
 import org.apache.hadoop.gateway.util.urltemplate.Resolver;
 import org.apache.hadoop.gateway.util.urltemplate.Template;
@@ -41,7 +42,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
 
@@ -52,6 +53,7 @@ public class UrlRewriteRequest extends GatewayRequestWrapper implements Resolver
   private static final UrlRewriteMessages LOG = MessagesFactory.get( UrlRewriteMessages.class );
   private static final String[] EMPTY_STRING_ARRAY = new String[]{};
 
+  private FilterConfig config;
   private UrlRewriter rewriter;
   private String urlRuleName;
   private String bodyFilterName;
@@ -67,6 +69,7 @@ public class UrlRewriteRequest extends GatewayRequestWrapper implements Resolver
    */
   public UrlRewriteRequest( FilterConfig config, HttpServletRequest request ) throws IOException {
     super( request );
+    this.config = config;
     this.rewriter = UrlRewriteServletContextListener.getUrlRewriter( config.getServletContext() );
     this.urlRuleName = config.getInitParameter( UrlRewriteServletFilter.REQUEST_URL_RULE_PARAM );
     this.bodyFilterName = config.getInitParameter( UrlRewriteServletFilter.REQUEST_BODY_FILTER_PARAM );
@@ -124,7 +127,7 @@ public class UrlRewriteRequest extends GatewayRequestWrapper implements Resolver
     if( url == null ) {
       return EMPTY_STRING_ARRAY;
     } else {
-      String s = url.toString();
+      String s = url.toEncodedString();
       return s.split( "\\?" );
     }
   }
@@ -183,7 +186,7 @@ public class UrlRewriteRequest extends GatewayRequestWrapper implements Resolver
 
   @Override
   public List<String> resolve( String name ) {
-    return Collections.emptyList();
+    return Arrays.asList( config.getInitParameter( name ) );
   }
 
   private class EnumerationRewriter implements Enumeration<String> {
@@ -211,11 +214,20 @@ public class UrlRewriteRequest extends GatewayRequestWrapper implements Resolver
 
   @Override
   public ServletInputStream getInputStream() throws IOException {
-    MimeType mimeType = getMimeType();
-    UrlRewriteFilterContentDescriptor filterContentConfig = getRewriteFilterConfig( bodyFilterName, mimeType );
-    InputStream stream = UrlRewriteStreamFilterFactory.create(
-        mimeType, null, super.getInputStream(), rewriter, this, UrlRewriter.Direction.IN, filterContentConfig );
-    return new UrlRewriteRequestStream( stream );
+    ServletInputStream input = super.getInputStream();
+    if( getContentLength() != 0 ) {
+      MimeType mimeType = getMimeType();
+      UrlRewriteFilterContentDescriptor filterContentConfig = getRewriteFilterConfig( bodyFilterName, mimeType );
+      if (filterContentConfig != null) {
+        String asType = filterContentConfig.asType();
+        if ( asType != null && asType.trim().length() > 0 ) {
+          mimeType = MimeTypes.create(asType, getCharacterEncoding());
+        }
+      }
+      InputStream stream = UrlRewriteStreamFilterFactory.create( mimeType, null, input, rewriter, this, UrlRewriter.Direction.IN, filterContentConfig );
+      input = new UrlRewriteRequestStream( stream );
+    }
+    return input;
   }
 
   @Override
@@ -226,7 +238,11 @@ public class UrlRewriteRequest extends GatewayRequestWrapper implements Resolver
   @Override
   public int getContentLength() {
     // The rewrite might change the content length so return the default of -1 to indicate the length is unknown.
-    return -1;
+    int contentLength = super.getContentLength();
+    if( contentLength > 0 ) {
+      contentLength = -1;
+    }
+    return contentLength;
   }
 
   private UrlRewriteFilterContentDescriptor getRewriteFilterConfig( String filterName, MimeType mimeType ) {

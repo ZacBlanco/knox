@@ -31,8 +31,8 @@ import org.apache.http.auth.BasicUserPrincipal;
 import org.easymock.EasyMock;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.testing.HttpTester;
-import org.eclipse.jetty.testing.ServletTester;
+import org.eclipse.jetty.http.HttpTester;
+import org.eclipse.jetty.servlet.ServletTester;
 import org.eclipse.jetty.util.ArrayQueue;
 import org.eclipse.jetty.util.log.Log;
 import org.hamcrest.core.Is;
@@ -44,6 +44,7 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -57,8 +58,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 public class ServiceRegistryFunctionsTest {
 
   private ServletTester server;
-  private HttpTester request;
-  private HttpTester response;
+  private HttpTester.Request request;
+  private HttpTester.Response response;
   private ArrayQueue<MockInteraction> interactions;
   private MockInteraction interaction;
 
@@ -108,8 +109,8 @@ public class ServiceRegistryFunctionsTest {
     server.start();
 
     interaction = new MockInteraction();
-    request = new HttpTester();
-    response = new HttpTester();
+    request = HttpTester.newRequest();
+    response = null;
   }
 
   @Test
@@ -133,12 +134,12 @@ public class ServiceRegistryFunctionsTest {
     interactions.add( interaction );
     request.setMethod( "PUT" );
     request.setURI( "/test-path" );
-    request.setVersion( "HTTP/1.1" );
+    //request.setVersion( "HTTP/1.1" );
     request.setHeader( "Host", "test-host:42" );
-    request.setContentType( "text/xml; charset=UTF-8" );
+    request.setHeader( "Content-Type", "text/xml; charset=UTF-8" );
     request.setContent( input );
 
-    response.parse( server.getResponses( request.generate() ) );
+    response = TestUtils.execute( server, request );
 
     // Test the results.
     assertThat( response.getStatus(), Is.is( 200 ) );
@@ -165,12 +166,12 @@ public class ServiceRegistryFunctionsTest {
     interactions.add( interaction );
     request.setMethod( "PUT" );
     request.setURI( "/test-path" );
-    request.setVersion( "HTTP/1.1" );
+    //request.setVersion( "HTTP/1.1" );
     request.setHeader( "Host", "test-host:42" );
-    request.setContentType( "application/json; charset=UTF-8" );
+    request.setHeader( "Content-Type", "application/json; charset=UTF-8" );
     request.setContent( input );
 
-    response.parse( server.getResponses( request.generate() ) );
+    response = TestUtils.execute( server, request );
 
     // Test the results.
     assertThat( response.getStatus(), Is.is( 200 ) );

@@ -35,12 +35,13 @@ import java.util.concurrent.Callable;
 
 class Java {
   
-  static class Request extends AbstractRequest<Response> {
+  public static class Request extends AbstractRequest<Response> {
 
     String jar;
     String app;
     String input;
     String output;
+    List<NameValuePair> params = new ArrayList<NameValuePair>();
 
     public Request( Hadoop session ) {
       super( session );
@@ -66,12 +67,16 @@ class Java {
       return this;
     }
 
+    public Request arg( String value ) {
+      addParam( params, "arg", value );
+      return this;
+    }
+
     protected Callable<Response> callable() {
       return new Callable<Response>() {
         @Override
         public Response call() throws Exception {
           URIBuilder uri = uri( Job.SERVICE_PATH, "/mapreduce/jar" );
-          List<NameValuePair> params = new ArrayList<NameValuePair>();
           params.add( new BasicNameValuePair( "jar", jar ) );
           params.add( new BasicNameValuePair( "class", app ) );
           params.add( new BasicNameValuePair( "arg", input ) );
